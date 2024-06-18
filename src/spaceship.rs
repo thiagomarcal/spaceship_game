@@ -5,6 +5,7 @@ use crate::collision::{Collision, CollisionDamage, CollisionType};
 use crate::health::Health;
 use crate::movement::{Acceleration, MovingObjectBundle, Roll, Rotation, Velocity};
 use crate::schedule::InGameSet;
+use crate::state::GameState;
 
 const STARTING_TRANSLATION: Vec3 = Vec3::new(0.0, 0.0, -20.0);
 const STARTING_VELOCITY: Vec3 = Vec3::new(0.0, 0.0, 1.0);
@@ -40,9 +41,11 @@ pub struct SpaceshipPlugin;
 impl Plugin for SpaceshipPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(PostStartup, spawn_spaceship)
+            .add_systems(OnEnter(GameState::GameOver), spawn_spaceship)
             .add_systems(Update, (spaceship_movement_controls, spaceship_weapon_controls, spaceship_shield_controls)
                 .chain()
-                .in_set(InGameSet::UserInput));
+                .in_set(InGameSet::UserInput))
+            .add_systems(Update, spaceship_destroyed.in_set(InGameSet::EntityUpdates));
     }
 }
 
@@ -70,7 +73,6 @@ fn spawn_spaceship(mut commands: Commands, scene_assets: Res<SceneAssets>) {
 fn spaceship_movement_controls(
     mut query: Query<(&Transform, &mut Velocity, &mut Rotation, &mut Roll), With<Spaceship>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    time: Res<Time>,
 ) {
     let Ok((transform, mut velocity, mut rotation, mut roll)) = query.get_single_mut() else {
         return;
@@ -108,7 +110,6 @@ fn spaceship_weapon_controls(
     mut query: Query<(&Transform), With<Spaceship>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     asset_scene: Res<SceneAssets>,
-    time: Res<Time>,
 ) {
     let Ok(transform) = query.get_single() else {
         return;
@@ -150,5 +151,14 @@ fn spaceship_shield_controls(
 
     if keyboard_input.pressed(KeyCode::KeyF) {
         commands.entity(entity).insert(SpaceshipShield);
+    }
+}
+
+fn spaceship_destroyed(mut next_state: ResMut<NextState<GameState>>, query: Query<(), With<Spaceship>>) {
+    match query.get_single() {
+        Ok(_) => {}
+        Err(_) => {
+            next_state.set(GameState::GameOver)
+        }
     }
 }
